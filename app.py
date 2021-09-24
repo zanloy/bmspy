@@ -58,7 +58,7 @@ class SlackBot:
 
     async def cmd_health(self, text, say) -> None:
         """Handles the `health` command.
-        
+
         text may be 0-2 "tokens".
         Case #1: No tokens. text=''. Will return a overall summary of all namespaces.
         Case #2: 1 token. text='mynamespace'. Will return the health of that namespace.
@@ -84,7 +84,7 @@ class SlackBot:
                             'text': f'Health for {namespace}:',
                         },
                     },
-                    { 'type': 'divider', },
+                    { 'type': 'divider' },
                 ]
                 for ns in self.get_all_namespaces():
                     if namespace_regex.fullmatch(ns):
@@ -93,7 +93,7 @@ class SlackBot:
                         blocks.extend(subblocks)
                 await say(f'Results for {namespace}.', blocks)
             else:
-                self.say_health(namespace, say)
+                await self.say_health(namespace, say)
 
     async def cmd_help(self, text, say) -> None:
         """Returns a help message, duh?"""
@@ -145,7 +145,7 @@ class SlackBot:
 
     def translate_healthy(self, healthy: str) -> Tuple[str, str]:
         """Because the API returns "True" if healthy,
-        we want to translate that to something more 
+        we want to translate that to something more
         readable by meat objects."""
         healthy = healthy.lower()
         if healthy == 'true':
