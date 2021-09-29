@@ -3,14 +3,15 @@ url = "https://pypi.python.org/simple"
 verify_ssl = false
 name = "pypi"
 
-[packages]
-slack-bolt = "*"
-python-dotenv = "*"
-websockets = "*"
-aiohttp = "*"
-requests = "*"
-
-[dev-packages]
-
 [requires]
 python_version = "3.8"
+
+[packages]
+aiohttp = "*"
+python-dotenv = ">=0.19.0"
+python-json-logger = ">=2.0.2"
+requests = ">=2.26.0"
+slack-bolt = ">=1.8.0"
+websockets = ">=9.1"
+
+[dev-packages]

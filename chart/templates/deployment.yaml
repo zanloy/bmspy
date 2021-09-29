@@ -1,0 +1,35 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ include "bmspy.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "bmspy.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "bmspy.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "bmspy.name" . }}
+        {{- include "bmspy.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ include "bmspy.name" . }}
+          image: {{ .Values.nexus }}/bms/bmspy:{{ .Chart.AppVersion }}
+          imagePullPolicy: Always
+          env:
+            - name: SLACK_APP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: bmspy
+                  key: SLACK_APP_TOKEN
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: bmspy
+                  key: SLACK_BOT_TOKEN
+      restartPolicy: Always

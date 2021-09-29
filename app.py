@@ -13,6 +13,7 @@ import sys
 import urllib.parse
 import websockets
 from collections import defaultdict
+from pythonjsonlogger import jsonlogger
 from typing import Dict, List, Literal, Tuple
 from pprint import pprint
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
@@ -66,7 +67,7 @@ class SlackBot:
         """
         token_count = len(text.split())
         if token_count == 0:
-            resp = requests.get('https://bms-api.prod8.bip.va.gov/health/namespaces', verify=False)
+            resp = requests.get('https://bms-api.prod8.bip.va.gov/ns/', verify=False)
             resp.raise_for_status()
             objs = resp.json()
             text, blocks = self.build_overview_blocks(objs)
@@ -114,7 +115,7 @@ class SlackBot:
             raise Exception(f':o: Error when trying to query {namespace}; Received HTTP status: {resp.status_code}.')
 
     def get_all_namespaces(self) -> List[str]:
-        resp = requests.get('https://bms-api.prod8.bip.va.gov/health/namespaces', verify=False)
+        resp = requests.get('https://bms-api.prod8.bip.va.gov/ns/', verify=False)
         resp.raise_for_status()
         objs = resp.json()
         namespaces = [ns['name'] for ns in objs]
@@ -305,14 +306,19 @@ class SlackBot:
         return (token, text)
 
 class BMSConsumer:
-    def __init__(self, base_url: str, slackbot: SlackBot) -> None:
-        self.base_url = base_url
+    def __init__(self, url: str, slackbot: SlackBot) -> None:
+        self.url = url
         self._slack = slackbot
 
     async def start(self):
-        url = urllib.parse.urljoin(self.base_url, '/health/ws')
-        async with websockets.connect(url) as websocket:
-            await self.consumer(websocket)
+        while True:
+            try:
+                async with websockets.connect(self.url, ping_interval=None) as websocket:
+                    await self.consumer(websocket)
+            except websockets.exceptions.ConnectionClosedError:
+                continue
+            else:
+                break
 
     async def consumer(self, websocket: websockets.WebSocketClientProtocol) -> None:
         async for message in websocket:
@@ -335,12 +341,18 @@ class BMSConsumer:
         else:
             previous_healthy = 'UNKNOWN'
         healthy = json_payload['healthy']
-        await self._slack.send_message('#general', f'[{kind}] {name} changed to {healthy} from {previous_healthy}.')
-        pprint(message)
+        channel = os.environ.get('BMSPY_ALERT_CHANNEL')
+        print(f'Totes about to alert #{channel}...')
+        await self._slack.send_message(f'#{channel}', f'{name} transitioned to {healthy} from {previous_healthy}.')
+        print('How did it go?')
 
 # Do work.
 if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    logHandler = logging.StreamHandler(stream=sys.stdout)
+    formatter = jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)s %(message)s')
+    logHandler.setFormatter(formatter)
+    logging.basicConfig(handlers=[logHandler], level=logging.DEBUG)
+
     loop = asyncio.get_event_loop()
     try:
         # Start Slack bot
@@ -350,7 +362,7 @@ if __name__ == '__main__':
         logging.info('Slack bot initialized.')
         # Start BMS websocket consumer
         logging.info('Initialing bms websocket consumer...')
-        bms = BMSConsumer('wss://bms-api.prod8.bip.va.gov/', slackbot)
+        bms = BMSConsumer('wss://bms-api.prod8.bip.va.gov/ws/ns', slackbot)
         loop.create_task(bms.start())
         logging.info('BMS websocket consumer initialized.')
         loop.run_forever()
