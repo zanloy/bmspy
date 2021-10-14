@@ -42,6 +42,9 @@ class SlackBot:
         await ack()
         await self.say_health(action['selected_option']['value'], say)
 
+    async def cmd_h(self, event, text, say) -> None:
+        await self.cmd_health(event, text, say)
+
     async def cmd_health(self, event, text, say) -> None:
         """Handles the `health` command.
 
@@ -77,14 +80,14 @@ class SlackBot:
             else:
                 await self.say_health(namespace, say, event)
 
-    async def cmd_help(self, text, say) -> None:
+    async def cmd_help(self, event, text, say) -> None:
         """Returns a help message, duh?"""
         (token, text) = self.next_token(text)
         if token == '':
             await say("I do one thing, and I try to do it well. Just @mention me with 'health %namespace%' or just 'health'.")
 
-    async def cmd_status(self, text, say) -> None:
-        await self.cmd_health(text, say)
+    async def cmd_status(self, event, text, say) -> None:
+        await self.cmd_health(event, text, say)
 
     def commands(self) -> List[str]:
         command_list = [func[len('cmd_'):] for func in dir(self) if callable(getattr(self, func)) and func.startswith('cmd_')]
