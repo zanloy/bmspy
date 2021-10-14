@@ -31,6 +31,8 @@ class SlackBot:
         # Setup handlers
         self._app.action('health')(self.action_health)
         self._app.event('app_mention')(self.handle_mention)
+        shortcut_re = f"^b ({'|'.join(self.commands())}) ?(.*)$"
+        self._app.message(re.compile(shortcut_re))(self.handle_message)
 
     async def start(self) -> None:
         handler = AsyncSocketModeHandler(self._app)
@@ -106,9 +108,18 @@ class SlackBot:
         try:
             method = getattr(self, f'cmd_{cmd}')
         except AttributeError:
-            await say(f'{cmd}: Unknown Command.')
+            await say(f'{cmd}: Unknown command.')
             return
         await method(event, text, say)
+
+    async def handle_message(self, context, event, say) -> None:
+        (cmd, text) = context.matches
+        try:
+            method = getattr(self, f'cmd_{cmd}')
+        except AttributeError:
+            await say(f'{cmd}: Unknown command.')
+            return
+        await method(event,text, say)
 
     async def say_health(self, namespace, say, payload=None) -> None:
         try:
@@ -128,82 +139,6 @@ class SlackBot:
             channel=channel,
             text=text,
         )
-
-    def translate_healthy(self, healthy: str) -> Tuple[str, str]:
-        """Because the API returns "True" if healthy,
-        we want to translate that to something more
-        readable by meat objects."""
-        healthy = healthy.lower()
-        if healthy == 'true':
-            return SlackBot.HEALTHY
-        elif healthy == 'false':
-            return SlackBot.UNHEALTHY
-        elif healthy == 'warn':
-            return SlackBot.WARNING
-        else:
-            return (healthy, ':question:')
-
-    def build_health_blocks(self, obj: Dict, include_header=True, include_link=True) -> Tuple[str, List[Dict]]:
-        status, icon = self.translate_healthy(obj['healthy'])
-        try:
-            kind = f"[{obj['kind']}] "
-        except KeyError:
-            kind = ''
-        try:
-            name = obj['name']
-        except KeyError:
-            name = 'UNKNOWN'
-        text = f'{kind}{name} status: {status}.'
-        blocks = []
-        if include_header:
-            blocks.append({
-                'type': 'header',
-                'text': {
-                    'type': 'plain_text',
-                    'text': f'{icon} {kind}{name} status: {status}',
-                }
-            })
-        else:
-            blocks.append({
-                'type': 'section',
-                'text': {
-                    'type': 'mrkdwn',
-                    'text': f'{icon} {kind}*{name}*: {status}',
-                }
-            })
-        if 'warnings' in obj.keys() or 'errors' in obj.keys():
-            blocks.append({'type':'divider'})
-            if 'errors' in obj.keys():
-                error_lines: List[str] = []
-                for error in obj['errors']:
-                    error_lines.append(f':small_red_triangle: {error}')
-                blocks.append({
-                    'type': 'section',
-                    'text': {
-                        'type': 'mrkdwn',
-                        'text': '\n'.join(error_lines)
-                    }
-                })
-            if 'warnings' in obj.keys():
-                warning_lines: List[str] = []
-                for warning in obj['warnings']:
-                    warning_lines.append(f':small_orange_diamond: {warning}')
-                blocks.append({
-                    'type': 'section',
-                    'text': {
-                        'type': 'mrkdwn',
-                        'text': '\n'.join(warning_lines)
-                    }
-                })
-        if include_link:
-            blocks.append({
-                'type': 'section',
-                'text': {
-                    'type': 'mrkdwn',
-                    'text': f'<https://bms.prod8.bip.va.gov/ns/{name}|Open in BMS>',
-                },
-            })
-        return text, blocks
 
     def next_token(self, text: str):
         tokens = text.split(' ', maxsplit=1)
