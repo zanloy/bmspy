@@ -4,7 +4,7 @@ verify_ssl = false
 name = "pypi"
 
 [requires]
-python_version = "3.8"
+python_version = "3.8.10"
 
 [packages]
 aiohttp = "*"
@@ -13,6 +13,8 @@ python-json-logger = ">=2.0.2"
 requests = ">=2.26.0"
 slack-bolt = ">=1.8.0"
 websockets = ">=9.1"
+slack-sdk = "*"
 
 [dev-packages]
+coverage = "*"
 docker = "*"
