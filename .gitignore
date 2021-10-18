@@ -1,7 +1,7 @@
 .doit.db
 .env
-.vscode/
 .venv/
+.vscode/
 __pycache__
 
 *.swp

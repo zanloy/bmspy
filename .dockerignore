@@ -1,5 +1,12 @@
+.coverage
+.dockerignore
+.doit.db
 .env
 .gitignore
-.venv
-chart
+.venv/
+.vscode/
+chart/
+dodo.py
+Dockerfile
 Makefile
+test.py
