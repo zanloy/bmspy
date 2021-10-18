@@ -1,6 +1,7 @@
 # Optional
 args:
-  - "--source=https://bms-api.bms:8080"
+  - "--alert-channel=bppo-alerts"
+  - "--source=http://bms-api.bms:8080"
   - "--log-level=INFO"
 
 image: "container-registry.prod8.bip.va.gov/bms/bmspy"

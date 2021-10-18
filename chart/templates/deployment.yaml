@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: {{ include "bmspy.name" . }}
-          image: {{ require "A valid `image` must be provided." .Values.image }}:{{ .Chart.AppVersion }}
+          image: {{ required "A valid `image` must be provided." .Values.image }}:{{ .Chart.AppVersion }}
           imagePullPolicy: Always
           env:
             - name: SLACK_APP_TOKEN
@@ -33,6 +33,10 @@ spec:
                   name: bmspy
                   key: SLACK_BOT_TOKEN
           {{ if .Values.args -}}
-          args: {{ .Values.args | toYaml | nindent 12 }}
-          {{ end -}}
+          command: ["pipenv"]
+          args:
+            - run
+            - ./bmspy.py
+            {{- .Values.args | toYaml | nindent 12 }}
+          {{- end }}
       restartPolicy: Always
