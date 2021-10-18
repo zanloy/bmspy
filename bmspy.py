@@ -1,91 +1,61 @@
 #!/usr/bin/env python3
 
+# StdLib
+import argparse
 import asyncio
 import dotenv
-import json
 import logging
 import os
 import sys
-import websockets
-from bmspy import *
-from collections import defaultdict
+from urllib.parse import urljoin, urlparse
+
+# Internal deps
+from bmspy import BMSConsumer, SlackBot
+
+# External deps
 from pythonjsonlogger import jsonlogger
-from typing import Dict, List, Literal, Tuple
-from pprint import pprint
 
 dotenv.load_dotenv()
-
-# Helper methods (that should eventually be moved out into a lib)
-def truncate(text: str, length: int=75) -> str:
-    if len(text) > length:
-        return text[:length-3] + '...'
-    else:
-        return text
-
-class BMSConsumer:
-    def __init__(self, url: str, slackbot: SlackBot) -> None:
-        self.url = url
-        self._slack = slackbot
-
-    async def start(self):
-        while True:
-            try:
-                async with websockets.connect(self.url, ping_interval=None) as websocket:
-                    await self.consumer(websocket)
-            except websockets.exceptions.ConnectionClosedError:
-                continue
-            else:
-                break
-
-    async def consumer(self, websocket: websockets.WebSocketClientProtocol) -> None:
-        async for message in websocket:
-            await self.process_msg(message)
-
-    async def process_msg(self, message):
-        json_payload = json.loads(message)
-        # filter
-        if json_payload['action'] == 'refresh':
-            return
-        if json_payload['kind'] not in ['namespace']:
-            return
-        kind = json_payload['kind']
-        name = json_payload['name']
-        if 'previous_healthy' in json_payload.keys():
-            if json_payload['previous_healthy'].lower() == 'true':
-                previous_healthy = 'HEALTHY'
-            elif json_payload['previous_healthy'].lower() == 'false':
-                previous_healthy = 'UNHEALTHY'
-        else:
-            previous_healthy = 'UNKNOWN'
-        healthy = json_payload['healthy']
-        channel = os.environ.get('BMSPY_ALERT_CHANNEL')
-        print(f'Totes about to alert #{channel}...')
-        await self._slack.send_message(f'#{channel}', f'{name} transitioned to {healthy} from {previous_healthy}.')
-        print('How did it go?')
 
 # Do work.
 if __name__ == '__main__':
     # TODO: Setup argparse for these
-    loglevel = logging.DEBUG
-    sources = ["http://localhost:8080"]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--alert-channel', default=os.environ.get('BMSPY_ALERT_CHANNEL', None), help='Slack channel to send health updates to')
+    parser.add_argument('--log-format', choices=['json', 'text'], default='text', help='format for log messages')
+    parser.add_argument('-l', '--log-level', choices=['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'], default='WARNING', help='level to show log messages')
+    parser.add_argument('-s', '--source', nargs='+', help='bms url(s) to monitor/query')
+    args = parser.parse_args()
 
-    logHandler = logging.StreamHandler(stream=sys.stdout)
-    formatter = jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)s %(message)s')
-    logHandler.setFormatter(formatter)
-    logging.basicConfig(handlers=[logHandler], level=loglevel)
+    if args.log_format == 'json':
+        logHandler = logging.StreamHandler(stream=sys.stdout)
+        formatter = jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)s %(message)s')
+        logHandler.setFormatter(formatter)
+        logging.basicConfig(handlers=[logHandler], level=args.log_level)
+    else:
+        logging.basicConfig(level=args.log_level)
 
     loop = asyncio.get_event_loop()
     try:
         # Start Slack bot
         logging.info('Initiating slack bot...')
-        slackbot = SlackBot(os.environ.get('SLACK_BOT_TOKEN'), sources)
+        slackbot = SlackBot(os.environ.get('SLACK_BOT_TOKEN'), args.source)
         loop.create_task(slackbot.start())
         logging.info('Slack bot initialized.')
         # Start BMS websocket consumer
-        #logging.info('Initialing bms websocket consumer...')
-        #bms = BMSConsumer('wss://bms-api.prod8.bip.va.gov/ws/ns', slackbot)
-        #loop.create_task(bms.start())
-        #logging.info('BMS websocket consumer initialized.')
+        if args.alert_channel:
+            logging.info('Initiating BMS websocket consumer...')
+            parse_result = urlparse(args.source[0])
+            if parse_result.scheme == 'https':
+                parse_result = parse_result._replace(scheme='wss')
+            else:
+                parse_result = parse_result._replace(scheme='ws')
+            url = urljoin(parse_result.geturl(), '/ws/ns')
+            bms = BMSConsumer(url, slackbot, args.alert_channel)
+            loop.create_task(bms.start())
+            logging.info('BMS websocket consumer initialized.')
+        else:
+            logging.info('Skipping BMS websocket consumer because no alert_channel set.')
         loop.run_forever()
     except KeyboardInterrupt:
         logging.info('Received keyboard interrupt signal. Closing down event loop and exiting...')

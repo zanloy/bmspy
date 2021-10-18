@@ -1,21 +1,21 @@
 # StdLib
-from collections import defaultdict
-import http
-import os
+from asyncio import sleep
+import logging
 from pprint import pprint
 import re
 import requests
-from typing import Dict, List, Literal, Tuple
+from typing import List, Type
 from urllib.parse import urljoin
 
-from slack_sdk.models.blocks.basic_components import PlainTextObject
 # Internal Deps
 from .builder import Builder
 from .health_update import HealthUpdate
+
 # External Deps
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
 from slack_bolt.async_app import AsyncApp
 from slack_sdk.models.blocks import Block, DividerBlock, HeaderBlock
+from slack_sdk.models.blocks.basic_components import PlainTextObject
 
 class SlackBot:
     HEALTHY = ('healthy', ':white_check_mark:')
@@ -24,19 +24,34 @@ class SlackBot:
 
     NAMESPACE_URI = '/ns/{namespace}'
 
-    def __init__(self, token: str, sources: List[str]) -> None:
+    def __init__(self, token: str, sources: List[str], wait: int=30) -> None:
+        # Validate
+        if token == None or token == '':
+            raise ValueError('token cannot be None or empty string')
+        if len(sources) < 1:
+            raise ValueError('sources cannot be empty')
+
         self._app = AsyncApp(token=token)
         self.token = token
         self._sources = sources
+        self._wait = wait
+
         # Setup handlers
         self._app.action('health')(self.action_health)
         self._app.event('app_mention')(self.handle_mention)
         shortcut_re = f"^b ({'|'.join(self.commands())}) ?(.*)$"
         self._app.message(re.compile(shortcut_re))(self.handle_message)
+        self._app.event('message')(self.handle_message)
 
     async def start(self) -> None:
         handler = AsyncSocketModeHandler(self._app)
-        await handler.start_async()
+        while True:
+            try:
+                await handler.start_async()
+            except (ConnectionError, TimeoutError) as e:
+                logging.error(e, f"connection error contacting Slack, waiting { self._wait } seconds to retry")
+                await sleep(self._wait)
+                continue
 
     async def action_health(self, ack, action, say):
         await ack()
@@ -67,8 +82,8 @@ class SlackBot:
                 blocks: List[Block] = []
                 blocks.append(
                     HeaderBlock(
-                        text=PlainTextObject(
-                            text=f'Health results for "{namespace}":'
+                        text = PlainTextObject(
+                            text = f'Health results for "{namespace}":'
                         )
                     )
                 )
@@ -116,13 +131,17 @@ class SlackBot:
         await method(event, text, say)
 
     async def handle_message(self, context, event, say) -> None:
+        # If they didn't come in on the regex, ignore
+        if context == None or context.matches == None or len(context.matches) < 2:
+            return
+
         (cmd, text) = context.matches
         try:
             method = getattr(self, f'cmd_{cmd}')
         except AttributeError:
             await say(f'{cmd}: Unknown command.')
             return
-        await method(event,text, say)
+        await method(event, text, say)
 
     async def say_health(self, namespace, say, payload=None) -> None:
         try:
@@ -137,10 +156,11 @@ class SlackBot:
             await say(f'There was an error while fetching the health of {namespace}. Check logs for details.')
             #raise
 
-    async def send_message(self, channel: str, text: str):
+    async def send_message(self, channel: str, text: str, blocks: List[Type[Block]]=[]):
         await self._app.client.chat_postMessage(
             channel=channel,
             text=text,
+            blocks=blocks,
         )
 
     def next_token(self, text: str):

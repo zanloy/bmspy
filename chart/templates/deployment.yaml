@@ -3,7 +3,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: {{ include "bmspy.name" . }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | default "bms" }}
   labels:
     {{- include "bmspy.labels" . | nindent 4 }}
 spec:
@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: {{ include "bmspy.name" . }}
-          image: {{ .Values.nexus }}/bms/bmspy:{{ .Chart.AppVersion }}
+          image: {{ require "A valid `image` must be provided." .Values.image }}:{{ .Chart.AppVersion }}
           imagePullPolicy: Always
           env:
             - name: SLACK_APP_TOKEN
@@ -32,4 +32,7 @@ spec:
                 secretKeyRef:
                   name: bmspy
                   key: SLACK_BOT_TOKEN
+          {{ if .Values.args -}}
+          args: {{ .Values.args | toYaml | nindent 12 }}
+          {{ end -}}
       restartPolicy: Always

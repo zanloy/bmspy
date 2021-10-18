@@ -1,7 +1,7 @@
 # StdLib
 from collections import defaultdict
 import os
-from typing import List, Tuple, Type
+from typing import List, Type, Union
 
 # Internal deps
 from .health_update import HealthUpdate
@@ -19,7 +19,7 @@ from slack_sdk.models.blocks import (
     PlainTextObject,
     SectionBlock,
 )
-from slack_sdk.models.blocks.basic_components import MarkdownTextObject, Option, OptionGroup
+from slack_sdk.models.blocks.basic_components import MarkdownTextObject, Option
 from slack_sdk.models.blocks.block_elements import StaticSelectElement
 
 class Builder:
@@ -33,46 +33,62 @@ class Builder:
         'Unknown': ':question:',
     }
 
-    def health(obj: Type[HealthUpdate], details: bool=False) -> List[Type[Block]]:
+    def details(obj: Type[HealthUpdate]) -> List[Type[Block]]:
+        blocks: List[Type[Block]] = []
+        if obj.healthy_str != 'Healthy':
+            blocks.append(DividerBlock())
+            if obj.errors:
+                blocks.append(
+                    SectionBlock(
+                        text = MarkdownTextObject(
+                            text = errors_markdown(obj.errors)
+                        )
+                    )
+                )
+            if obj.warnings:
+                blocks.append(
+                    SectionBlock(
+                        text = MarkdownTextObject(
+                            text = warnings_markdown(obj.warnings)
+                        )
+                    )
+                )
+            if obj.alerts:
+                blocks.append(
+                    SectionBlock(
+                        text = MarkdownTextObject(
+                            text = alerts_markdown(obj.alerts)
+                        )
+                    )
+                )
+        return blocks
+
+    def health(objs: Union[HealthUpdate, List[HealthUpdate]], details: bool=False) -> List[Type[Block]]:
+        # Validate
+        if isinstance(objs, HealthUpdate):
+            objs = [objs]
+        elif isinstance(objs, list):
+            for obj in objs:
+                if not isinstance(obj, HealthUpdate):
+                    raise ValueError('all objects passed in list must be an instance of HealthUpdate')
+        else:
+            raise ValueError('objs variable must be an instance of HealthUpdate or List[HealthUpdate]')
+
+        # Collect data
         icon = Builder.ICONS.get(obj.healthy_str, ':interrobang:')
         mrkdown = f'{icon} [{obj.kind}] *{obj.name}* state: *{obj.healthy_str}*.'
 
-        blocks: List[Block] = []
+        # Building blocks
+        blocks: List[Type[Block]] = []
         blocks.append(
             SectionBlock(
-                text=MarkdownTextObject(
-                    text=mrkdown
+                text = MarkdownTextObject(
+                    text = mrkdown
                 )
             )
         )
-
         if details:
-            if not obj.healthy:
-                blocks.append(DividerBlock())
-                if obj.errors:
-                    blocks.append(
-                        SectionBlock(
-                            text=MarkdownTextObject(
-                                text=errors_markdown(obj.errors)
-                            )
-                        )
-                    )
-                if obj.warnings:
-                    blocks.append(
-                        SectionBlock(
-                            text=MarkdownTextObject(
-                                text=warnings_markdown(obj.warnings)
-                            )
-                        )
-                    )
-                if obj.alerts:
-                    blocks.append(
-                        SectionBlock(
-                            text=MarkdownTextObject(
-                                text=alerts_markdown(obj.alerts)
-                            )
-                        )
-                    )
+            blocks.extend(Builder.details(obj))
 
         return blocks
 
@@ -94,11 +110,11 @@ class Builder:
             statuses.append(f'alert({len(collection["Alert"])})')
 
         # Building Blocks
-        blocks: List[Block] = []
+        blocks: List[Type[Block]] = []
         blocks.append(
             HeaderBlock(
-                text=PlainTextObject(
-                    text=f':medical_symbol: Overall health: {", ".join(statuses)}'
+                text = PlainTextObject(
+                    text = f':medical_symbol: Overall health: {", ".join(statuses)}'
                 )
             )
         )
@@ -110,18 +126,36 @@ class Builder:
             # Build SelectBlock for more details
             blocks.append(
                 SectionBlock(
-                    text=MarkdownTextObject(
-                        text=os.linesep.join(lines)
+                    text = MarkdownTextObject(
+                        text = os.linesep.join(lines)
                     ),
-                    accessory=StaticSelectElement(
-                        placeholder=PlainTextObject(
-                            text='More details...'
+                    accessory = StaticSelectElement(
+                        placeholder = PlainTextObject(
+                            text = 'More details...'
                         ),
                         #options=[{'text':{'type':'plain_text','text':ns.name,'value':ns.name}} for ns in collection['Unhealthy']],
-                        options=[Option(text=ns.name, value=ns.name) for ns in collection['Unhealthy']],
-                        action_id='health'
+                        options = [Option(text=ns.name, value=ns.name) for ns in collection['Unhealthy']],
+                        action_id = 'health'
                     )
                 )
             )
 
+        return blocks
+
+    def transition_msg(obj: HealthUpdate) -> List[Type[Block]]:
+        """Create a Slack message for an Update stating a state transition."""
+        # Gather info
+        icon = Builder.ICONS.get(obj.healthy_str, ':interrobang"')
+        text = f'{icon} [{obj.kind}] {obj.name} transitioned state: {obj.previous_healthy_str} -> {obj.healthy_str}'
+
+        # Building blocks
+        blocks: List[Type[Block]] = []
+        blocks.append(
+            HeaderBlock(
+                text = PlainTextObject(
+                    text = text
+                )
+            )
+        )
+        blocks.extend(Builder.details(obj))
         return blocks

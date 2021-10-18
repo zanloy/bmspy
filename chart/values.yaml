@@ -1,2 +1,9 @@
+# Optional
+args:
+  - "--source=https://bms-api.bms:8080"
+  - "--log-level=INFO"
+
+image: "container-registry.prod8.bip.va.gov/bms/bmspy"
+
+# Optional: default=bms
 namespace: bms
-nexus: container-registry.prod8.bip.va.gov
