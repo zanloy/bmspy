@@ -25,12 +25,17 @@ class SlackBot:
     NAMESPACE_URI = '/ns/{namespace}'
 
     def __init__(self, token: str, sources: List[str], wait: int=30) -> None:
+        # This is for unittest and returns a known unusable object
+        if token == 'testing':
+            return
+
         # Validate
         if token == None or token == '':
             raise ValueError('token cannot be None or empty string')
         if len(sources) < 1:
             raise ValueError('sources cannot be empty')
 
+        # Init self
         self._app = AsyncApp(token=token)
         self.token = token
         self._sources = sources

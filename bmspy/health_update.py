@@ -1,3 +1,4 @@
+import jmespath
 from typing import List, Union
 from .utils import get_or_die
 
@@ -6,13 +7,15 @@ class HealthUpdate(object):
 
     def __init__(self, hupdate: dict):
         self._action = hupdate.get('action', '')
-        self._healthy = get_or_die(hupdate, 'healthy')
-        self._errors = hupdate.get('errors', [])
-        self._warnings = hupdate.get('warnings', [])
         self._alerts = hupdate.get('alerts', [])
+        self._env = jmespath.search('tenant.env', hupdate)
+        self._errors = hupdate.get('errors', [])
+        self._healthy = get_or_die(hupdate, 'healthy')
         self._kind = get_or_die(hupdate, 'kind')
         self._name = get_or_die(hupdate, 'name')
         self._namespace = hupdate.get('namespace', '')
+        self._tenant = jmespath.search('tenant.name', hupdate)
+        self._warnings = hupdate.get('warnings', [])
 
         self._previous_healthy = hupdate.get('previous_healthy', None)
 
@@ -25,10 +28,14 @@ class HealthUpdate(object):
         return self._alerts
 
     @property
+    def env(self) -> str:
+        return self._env
+
+    @property
     def errors(self) -> List[str]:
         return self._errors
 
-    def has_above(self, level):
+    def has_above(self, level: str) -> bool:
         result = {
             'error': self.has_errors,
             'warn': self.has_errors or self.has_warnings,
@@ -102,6 +109,10 @@ class HealthUpdate(object):
     @property
     def previous_healthy_str(self) -> Union[str, None]:
         return HealthUpdate.healthy_to_str(self._previous_healthy)
+
+    @property
+    def tenant(self) -> str:
+        return self._tenant
 
     @property
     def warnings(self) -> List[str]:

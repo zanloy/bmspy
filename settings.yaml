@@ -1,0 +1,14 @@
+---
+routes:
+  - channel: test1
+    tenants:
+      - benefit-services
+      - blue
+    namespaces:
+      - "cfapi-*"
+  - channel: test2
+    tenants:
+      - platform
+    namespaces:
+      - "/vasrd-(int|test)/"
+      - "bah-dev"
