@@ -1,10 +1,30 @@
+image: "container-registry.prod8.bip.va.gov/bms/bmspy"
+
 # Optional
 args:
-  - "--alert-channel=bppo-alerts"
+  - "--alert-channel=bms-all"
   - "--source=http://bms-api.bms:8080"
   - "--log-level=INFO"
 
-image: "container-registry.prod8.bip.va.gov/bms/bmspy"
-
 # Optional: default=bms
 namespace: bms
+
+config:
+  routes:
+    - channel: "#bms-cnp"
+      tenants:
+        - benefit-services
+        - bffs
+        - bss
+        - cfapi
+        - cpui
+        - data-synchronization
+        - exam-destination
+        - exam-mgmt
+        - ibs
+        - pension-automation
+        - rrc
+        - vasrd
+        - vbmsc
+        - vefs-rrc
+        - vefs-claimevidence

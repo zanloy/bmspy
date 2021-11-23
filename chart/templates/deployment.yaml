@@ -39,4 +39,14 @@ spec:
             - ./bmspy.py
             {{- .Values.args | toYaml | nindent 12 }}
           {{- end }}
+{{- if .Values.config | default false }}
+          volumeMounts:
+            - name: config
+              mountPath: /home/bmspy/settings.yaml
+              subPath: settings.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "bmspy.name" . }}
+{{- end }}
       restartPolicy: Always

@@ -1,0 +1,12 @@
+{{- if .Values.config -}}
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "bmspy.name" . }}
+  namespace: {{ .Values.namespace | default "bms" }}
+  labels:
+    {{- include "bmspy.labels" . | nindent 4 }}
+data:
+  settings.yaml: |- {{ .Values.config | toYaml | nindent 4 }}
+{{- end }}
